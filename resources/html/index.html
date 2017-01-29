@@ -1,0 +1,122 @@
+{{define "my-template"}}
+
+<!DOCTYPE html>
+
+<html lang="en">
+
+{{template "head" .}}
+
+<body>
+
+	{{template "script" .}}
+
+	<script type="text/javascript">
+		$(document).ready(function() {
+			page('/', index);
+			page('*', notFound);
+			page();
+		});
+
+		function index() {
+			getSpeech('20170128225721.flac');
+		}
+
+		function getSpeech(fileName) {
+			var data = {
+				config: {
+					encoding: 'FLAC',
+					sampleRate: 16000,
+					languageCode: 'en-US'
+				},
+				audio: {
+					uri: 'gs://deltafoods/' + fileName
+				}
+			}
+
+			var jsonData = JSON.stringify(data);
+			getText(jsonData)
+		}
+
+		function getText(data) {
+			$.ajax({
+	            type: 'POST',
+	            url: 'https://speech.googleapis.com/v1beta1/speech:syncrecognize?key=AIzaSyAndEsl-L4cSN0weSwpLULZef9mPfy1uIY',
+	            data: data,
+	            contentType: 'application/json; charset=utf-8',
+	            dataType: 'json',
+	            cache: false
+	        }).done(function(json, textStatus, jqXHr) {
+	        	var str = json.results[0].alternatives[0].transcript;
+	        	var words = str.split(' ');
+	        	var text = '';
+
+	        	$.each(words, function(i, word) {
+	        		text += word + "+";
+	        	});
+
+	        	// remove last character
+	        	var newStr = text.substring(0, text.length-1);
+	        	searchFood(newStr);
+	        }).fail(function(jqXHr, textStatus, errorThrown) {
+	            handleAjaxError(jqXHr, textStatus);
+	        }).always(function() {});
+		}
+
+		function searchFood(food) {
+			$.ajax({
+                type: 'GET',
+                url: 'https://api.wolframalpha.com/v2/query?input=' + food + '&format=plaintext&output=JSON&appid=YRJ687-UVTU8K7VVA',
+                dataType: 'json',
+                cache: false
+            }).done(function(json, textStatus, jqXHr) {
+            	parseData(json);
+            }).fail(function(jqXHr, textStatus, errorThrown) {
+                handleAjaxError(jqXHr, textStatus);
+            }).always(function() {});
+		}
+
+		function parseData(json) {
+			var info = json.queryresult.pods[1].subpods[0].plaintext;
+        	var array = info.split('\n');
+        	
+        	var caloriesInfo = array[1].split('total calories')[1].split('|')[0].replace(/\D/g,'');
+        	var fatInfo = array[3].split('total fat')[1].split('|')[0].replace(/\D/g,'');
+        	var cholesterolInfo = array[6].split('cholesterol')[1].split('|')[0].replace(/\D/g,'');
+        	var sodiumInfo = array[7].split('sodium')[1].split('|')[0].replace(/\D/g,'');
+        	var carbohydratesInfo = array[8].split('total carbohydrates')[1].split('|')[0].replace(/\D/g,'');
+        	var proteinInfo = array[11].split('protein')[1].split('|')[0].replace(/\D/g,'');
+
+        	var data = {
+        		calories: parseInt(caloriesInfo),
+        		fat: parseInt(fatInfo),
+        		cholesterol: parseInt(cholesterolInfo),
+        		sodium: parseInt(sodiumInfo),
+        		carbohydrates: parseInt(carbohydratesInfo),
+        		protein: parseInt(proteinInfo)
+        	}
+
+        	var jsonData = JSON.stringify(data);
+        	updateData(jsonData);
+		}
+
+		function updateData(data) {
+			$.ajax({
+	            type: 'POST',
+	            url: '/updateData',
+	            data: data,
+	            contentType: 'application/json; charset=utf-8',
+	            dataType: 'json',
+	            cache: false
+	        }).done(function(json, textStatus, jqXHr) {
+	        	Materialize.toast('Data updated.', 4000);
+	        }).fail(function(jqXHr, textStatus, errorThrown) {
+	            handleAjaxError(jqXHr, textStatus);
+	        }).always(function() {});
+		}
+	</script>
+
+</body>
+
+</html>
+
+{{end}}
